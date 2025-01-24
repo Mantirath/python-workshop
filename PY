@@ -1,0 +1,119 @@
+import tensorflow as tf
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# Load MNIST dataset
+(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+
+
+# Preprocess the data: Flatten the images into 1D arrays for RandomForest, and normalize images for CNN
+x_train_flat = x_train.reshape(x_train.shape[0], -1).astype('float32') / 255
+x_test_flat = x_test.reshape(x_test.shape[0], -1).astype('float32') / 255
+
+
+x_train_cnn = x_train.reshape((x_train.shape[0], 28, 28, 1)).astype('float32') / 255
+x_test_cnn = x_test.reshape((x_test.shape[0], 28, 28, 1)).astype('float32') / 255
+
+
+# Training and evaluating CNN model
+cnn = cnn = tf.keras.models.Sequential([
+        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(64, activation='relu'),
+        tf.keras.layers.Dense(10, activation='softmax')
+    ])
+cnn.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+print(cnn.summary())
+
+
+cnn_start_time = time.time()
+cnn.fit(x_train_cnn, y_train, epochs=5, batch_size=64, verbose=0)
+
+
+cnn_end_time = time.time()
+cnn_training_time = cnn_end_time - cnn_start_time
+cnn_test_loss, cnn_test_acc = cnn.evaluate(x_test_cnn, y_test, verbose=0)
+cnn_y_pred = cnn.predict(x_test_cnn)
+cnn_y_pred = np.argmax(cnn_y_pred, axis=1)
+
+
+# Training and evaluating Random Forest model
+rf_start_time = time.time()
+rf = RandomForestClassifier(n_estimators=100, random_state=42)
+rf.fit(x_train_flat, y_train)
+rf_end_time = time.time()
+rf_training_time = rf_end_time - rf_start_time
+
+
+rf_y_pred = rf.predict(x_test_flat)
+rf_test_acc = accuracy_score(y_test, rf_y_pred)
+
+
+# Print Classification Report and Confusion Matrix for CNN
+print("CNN Classification Report:\n", classification_report(y_test, cnn_y_pred))
+print("CNN Confusion Matrix:")
+cnn_cm = confusion_matrix(y_test, cnn_y_pred)
+sns.heatmap(cnn_cm, annot=True, fmt="d", cmap="Blues", xticklabels=np.arange(10), yticklabels=np.arange(10))
+plt.title("CNN Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.show()
+
+
+# Print Classification Report and Confusion Matrix for Random Forest
+print("Random Forest Classification Report:\n", classification_report(y_test, rf_y_pred))
+print("Random Forest Confusion Matrix:")
+rf_cm = confusion_matrix(y_test, rf_y_pred)
+sns.heatmap(rf_cm, annot=True, fmt="d", cmap="Blues", xticklabels=np.arange(10), yticklabels=np.arange(10))
+plt.title("Random Forest Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.show()
+
+
+# Comparison Results
+print(f"CNN Test Accuracy: {cnn_test_acc:.4f}")
+print(f"Random Forest Test Accuracy: {rf_test_acc:.4f}")
+print(f"CNN Training Time: {cnn_training_time:.2f} seconds")
+print(f"Random Forest Training Time: {rf_training_time:.2f} seconds")
+
+
+# Plotting the comparison
+labels = ['CNN', 'Random Forest']
+accuracies = [cnn_test_acc, rf_test_acc]
+training_times = [cnn_training_time, rf_training_time]
+
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+
+# Accuracy Plot
+axes[0].bar(labels, accuracies, color=['blue', 'orange'])
+axes[0].set_title('Test Accuracy Comparison')
+axes[0].set_ylabel('Accuracy')
+
+
+# Training Time Plot
+axes[1].bar(labels, training_times, color=['blue', 'orange'])
+axes[1].set_title('Training Time Comparison')
+axes[1].set_ylabel('Time (seconds)')
+
+
+plt.tight_layout()
+plt.show()
+
+
+import pickle as pkl
+
+
+with open("cnn_model.pkl", "wb") as file:
+    pkl.dump(cnn, file)
